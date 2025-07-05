@@ -1,0 +1,169 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+
+local SeedDataTemp = LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame:GetChildren()
+local SeedData = {}
+
+for _, child in ipairs(SeedDataTemp) do
+    if #child:GetChildren() > 0 then
+        local name = child.Name
+        local stockText = child:FindFirstChild("Main_Frame") and child.Main_Frame:FindFirstChild("Stock_Text")
+        
+        if stockText and stockText:IsA("TextLabel") then
+            table.insert(SeedData, {
+                Name = name,
+                Stock = stockText.Text
+            })
+        end
+    end
+end
+
+
+
+local BuyEvent = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuySeedStock")
+
+local seedNames = {}
+for _, data in ipairs(SeedData) do
+    table.insert(seedNames, data.Name .. " (Stock: " .. data.Stock .. ")")
+end
+
+table.sort(seedNames)
+
+if #seedNames == 0 then
+    Rayfield:Notify({
+        Title = "❗ No Seeds Found",
+        Content = "SeedData is empty. Check the game setup.",
+        Duration = 5
+    })
+end
+
+local toggleKey = Enum.KeyCode.K
+local autoBuy = false
+local selectedSeed = seedNames[1] or "Select"
+
+-- Create Rayfield window
+local Window = Rayfield:CreateWindow({
+    Name = "🔥 Inferno | Grow a Garden",
+    LoadingTitle = "Inferno Hub",
+    LoadingSubtitle = "Grow your garden",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "Inferno",
+        FileName = "Config"
+    },
+    Discord = {
+        Enabled = false
+    },
+    KeySystem = false,
+    IntroEnabled = true,
+    IntroText = "Welcome to Inferno"
+})
+
+-- Main tab
+local MainTab = Window:CreateTab("Main", 4483362458)
+MainTab:CreateLabel("Welcome to Inferno")
+
+-- Shop tab
+local ShopTab = Window:CreateTab("Shop", 4483362458)
+ShopTab:CreateDropdown({
+    Name = "Select Seed",
+    Options = seedNames,
+    Default = selectedSeed,
+    Flag = "SeedDropdown",
+    Callback = function(value)
+        selectedSeed = value
+    end
+})
+ShopTab:CreateToggle({
+    Name = "Enable Auto Buy",
+    Default = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(value)
+        autoBuy = value
+
+        Rayfield:Notify({
+            Title = "Auto Buy " .. (value and "Enabled" or "Disabled"),
+            Content = selectedSeed,
+            Duration = 2
+        })
+
+        if autoBuy and selectedSeed then
+            task.wait(.5)
+            BuyEvent:FireServer({selectedSeed})
+        end
+    end 
+})
+
+-- Teleports tab
+local TeleTab = Window:CreateTab("Teleports", 6031071050)
+TeleTab:CreateButton({
+    Name = "Teleport to Spawn",
+    Callback = function()
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then
+            LocalPlayer.CharacterAdded:Wait()
+            task.wait(1)
+            hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        end
+        local spawn = workspace:FindFirstChild("SpawnLocation")
+        if hrp and spawn then
+            hrp.CFrame = spawn.CFrame + Vector3.new(0, 3, 0)
+        end
+    end
+})
+
+-- Settings tab
+local SettingsTab = Window:CreateTab("Settings", 6035047409)
+SettingsTab:CreateLabel("User: " .. LocalPlayer.Name)
+SettingsTab:CreateLabel("UserId: " .. tostring(LocalPlayer.UserId))
+SettingsTab:CreateBind({
+    Name = "Set UI Toggle Key",
+    Default = toggleKey,
+    Hold = false,
+    Flag = "ToggleKey",
+    Callback = function(newKey)
+        toggleKey = newKey
+        Rayfield:Notify({
+            Title = "Keybind Updated",
+            Content = "Press [" .. tostring(toggleKey) .. "] to toggle the UI.",
+            Duration = 3
+        })
+    end
+})
+SettingsTab:CreateButton({
+    Name = "🛑 Close Script",
+    Callback = function()
+        Rayfield:Destroy()
+    end
+})
+
+-- Misc tab
+local MiscTab = Window:CreateTab("Misc", 4483362458)
+
+MiscTab:CreateButton({
+    Name = "WIP",
+})
+
+local UserInputService = game:GetService("UserInputService")
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.LeftAlt then
+		Rayfield:Destroy()
+	end
+end)
+
+
+
+task.spawn(function()
+    while true do
+        if autoBuy and selectedSeed then
+            BuyEvent:FireServer(selectedSeed)
+        end
+        task.wait(2)
+    end
+end)
