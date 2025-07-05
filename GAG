@@ -3,49 +3,18 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-
-
-local SeedDataTemp = LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame:GetChildren()
-local SeedData = {}
-
-for _, child in ipairs(SeedDataTemp) do
-    if #child:GetChildren() > 0 then
-        local name = child.Name
-        local stockText = child:FindFirstChild("Main_Frame") and child.Main_Frame:FindFirstChild("Stock_Text")
-        
-        if stockText and stockText:IsA("TextLabel") then
-            table.insert(SeedData, {
-                Name = name,
-                Stock = stockText.Text
-            })
-        end
-    end
-end
-
-
+local UserInputService = game:GetService("UserInputService")
 
 local BuyEvent = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuySeedStock")
 
-local seedNames = {}
-for _, data in ipairs(SeedData) do
-    table.insert(seedNames, data.Name .. " (Stock: " .. data.Stock .. ")")
-end
-
-table.sort(seedNames)
-
-if #seedNames == 0 then
-    Rayfield:Notify({
-        Title = "❗ No Seeds Found",
-        Content = "SeedData is empty. Check the game setup.",
-        Duration = 5
-    })
-end
+local SeedData = {}  -- seed names (strings)
+local SeedStock = {} -- seed stocks (strings or numbers)
 
 local toggleKey = Enum.KeyCode.K
 local autoBuy = false
-local selectedSeed = seedNames[1] or "Select"
+local selectedSeed = nil
 
--- Create Rayfield window
+-- Create the Rayfield window
 local Window = Rayfield:CreateWindow({
     Name = "🔥 Inferno | Grow a Garden",
     LoadingTitle = "Inferno Hub",
@@ -67,36 +36,9 @@ local Window = Rayfield:CreateWindow({
 local MainTab = Window:CreateTab("Main", 4483362458)
 MainTab:CreateLabel("Welcome to Inferno")
 
--- Shop tab
+-- Shop tab and dropdown variables
 local ShopTab = Window:CreateTab("Shop", 4483362458)
-ShopTab:CreateDropdown({
-    Name = "Select Seed",
-    Options = seedNames,
-    Default = selectedSeed,
-    Flag = "SeedDropdown",
-    Callback = function(value)
-        selectedSeed = value
-    end
-})
-ShopTab:CreateToggle({
-    Name = "Enable Auto Buy",
-    Default = false,
-    Flag = "AutoBuyToggle",
-    Callback = function(value)
-        autoBuy = value
-
-        Rayfield:Notify({
-            Title = "Auto Buy " .. (value and "Enabled" or "Disabled"),
-            Content = selectedSeed,
-            Duration = 2
-        })
-
-        if autoBuy and selectedSeed then
-            task.wait(.5)
-            BuyEvent:FireServer({selectedSeed})
-        end
-    end 
-})
+local seedDropdown -- placeholder for dropdown object
 
 -- Teleports tab
 local TeleTab = Window:CreateTab("Teleports", 6031071050)
@@ -143,22 +85,95 @@ SettingsTab:CreateButton({
 
 -- Misc tab
 local MiscTab = Window:CreateTab("Misc", 4483362458)
-
-MiscTab:CreateButton({
-    Name = "WIP",
-})
-
-local UserInputService = game:GetService("UserInputService")
+MiscTab:CreateButton({Name = "WIP"})
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.LeftAlt then
-		Rayfield:Destroy()
-	end
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.LeftAlt then
+        Rayfield:Destroy()
+    end
 end)
 
+-- Function to update SeedData and SeedStock from GUI
+local function updateSeeds()
+    local SeedDataTemp = LocalPlayer.PlayerGui.Seed_Shop.Frame.ScrollingFrame:GetChildren()
 
+    SeedData = {}
+    SeedStock = {}
 
+    for _, child in ipairs(SeedDataTemp) do
+        if #child:GetChildren() > 0 then
+            local name = child.Name
+            local stockText = child:FindFirstChild("Main_Frame") and child.Main_Frame:FindFirstChild("Stock_Text")
+
+            if stockText and stockText:IsA("TextLabel") then
+                table.insert(SeedData, name)
+                table.insert(SeedStock, stockText.Text)
+            end
+        end
+    end
+end
+
+-- Function to refresh dropdown options dynamically
+local function refreshDropdown()
+    updateSeeds()
+
+    if #SeedData == 0 then
+        Rayfield:Notify({
+            Title = "❗ No Seeds Found",
+            Content = "SeedData is empty. Check the game setup.",
+            Duration = 5
+        })
+        return
+    end
+
+    local seedDisplayNames = {}
+    local seedNameMap = {}
+
+    for i, name in ipairs(SeedData) do
+        local stock = SeedStock[i] or "N/A"
+        local displayName = name .. " - Stock: " .. stock
+        table.insert(seedDisplayNames, displayName)
+        seedNameMap[displayName] = name
+    end
+
+    table.sort(seedDisplayNames)
+
+    -- Set default selected seed if nil or no longer valid
+    if not selectedSeed or not table.find(SeedData, selectedSeed) then
+        selectedSeed = SeedData[1]
+    end
+
+    -- If dropdown not created yet, create it; otherwise update options
+    if not seedDropdown then
+        seedDropdown = ShopTab:CreateDropdown({
+            Name = "Select Seed",
+            Options = seedDisplayNames,
+            Default = selectedSeed .. " - Stock: " .. (SeedStock[table.find(SeedData, selectedSeed)] or "N/A"),
+            Flag = "SeedDropdown",
+            Callback = function(value)
+                selectedSeed = seedNameMap[value]
+            end
+        })
+    else
+        -- Update dropdown options and default selection
+        seedDropdown:UpdateOptions(seedDisplayNames)
+        seedDropdown:SetDefault(selectedSeed .. " - Stock: " .. (SeedStock[table.find(SeedData, selectedSeed)] or "N/A"))
+    end
+end
+
+-- Initial call to setup dropdown
+refreshDropdown()
+
+-- Update seeds every 3 seconds (adjust as needed)
+task.spawn(function()
+    while true do
+        refreshDropdown()
+        task.wait(3)
+    end
+end)
+
+-- Auto-buy loop
 task.spawn(function()
     while true do
         if autoBuy and selectedSeed then
@@ -167,3 +182,19 @@ task.spawn(function()
         task.wait(2)
     end
 end)
+
+-- Auto Buy Toggle
+ShopTab:CreateToggle({
+    Name = "Enable Auto Buy",
+    Default = false,
+    Flag = "AutoBuyToggle",
+    Callback = function(value)
+        autoBuy = value
+
+        Rayfield:Notify({
+            Title = "Auto Buy " .. (value and "Enabled" or "Disabled"),
+            Content = selectedSeed or "None",
+            Duration = 2
+        })
+    end
+})
