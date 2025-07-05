@@ -1,0 +1,54 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local correctKey = "451di1PE1Z"
+local discordInvite = "https://discord.gg/VkXWudMqtC"
+
+local Window = Rayfield:CreateWindow({
+    Name = "🔒 Key System",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "Please enter your key",
+    ConfigurationSaving = {
+        Enabled = false
+    }
+})
+
+local AccessTab = Window:CreateTab("Access")
+
+AccessTab:CreateInput({
+    Name = "Enter Your Key",
+    PlaceholderText = "Key here",
+    RemoveTextAfterFocusLost = true,
+    Callback = function(input)
+        if input == correctKey then
+            Rayfield:Notify({
+                Title = "✅ Access Granted",
+                Content = "Welcome!",
+                Duration = 3
+            })
+            Rayfield:Destroy()
+            loadMainGui()
+        else
+            Rayfield:Notify({
+                Title = "❌ Invalid Key",
+                Content = "Check Discord for the latest key.",
+                Duration = 3
+            })
+        end
+    end
+})
+
+function loadMainGui()
+    loadstring(game:HttpGet(''))()
+end
+
+AccessTab:CreateButton({
+    Name = "Get Key (Join Discord)",
+    Callback = function()
+        setclipboard(discordInvite)
+        Rayfield:Notify({
+            Title = "📋 Copied",
+            Content = "Discord link copied to clipboard!",
+            Duration = 3
+        })
+    end
+})
